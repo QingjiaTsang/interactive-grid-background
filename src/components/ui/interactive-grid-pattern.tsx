@@ -190,7 +190,7 @@ export function InteractiveGridPattern({
                   ? '#A5AD3D'
                   : squareState?.state === 'fading'
                   ? undefined
-                  : 'rgb(156 163 175 / 0.3)',
+                  : 'rgb(156 163 175 / 0.1)',
             }}
           />
         );
