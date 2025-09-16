@@ -1,7 +1,8 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState } from 'react';
+import { useIsMobile } from '@/hooks/use-is-mobile';
 
 /**
  * InteractiveGridPattern is a component that renders a grid pattern with interactive squares.
@@ -41,18 +42,8 @@ export function InteractiveGridPattern({
 }: InteractiveGridPatternProps) {
   const [horizontal, vertical] = squares;
   const [squaresState, setSquaresState] = useState<Record<number, SquareState>>({});
-  const lastSquareRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    // Cleanup timeouts on unmount
-    return () => {
-      for (const square of Object.values(squaresState)) {
-        if (square.timeoutId) {
-          clearTimeout(square.timeoutId);
-        }
-      }
-    };
-  }, [squaresState]);
+  const lastHoveredSquareRef = useRef<number | null>(null);
+  const isMobile = useIsMobile();
 
   const getNeighbors = (x: number, y: number) => {
     const col = Math.floor(x / width);
@@ -77,18 +68,20 @@ export function InteractiveGridPattern({
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    const currentSquare = Math.floor(y / height) * horizontal + Math.floor(x / width);
+    const col = Math.floor(x / width);
+    const row = Math.floor(y / height);
+    const index = row * horizontal + col;
 
-    if (currentSquare === lastSquareRef.current) {
+    if (index === lastHoveredSquareRef.current) {
       return;
     }
 
-    lastSquareRef.current = currentSquare;
+    lastHoveredSquareRef.current = index;
 
     const neighbors = getNeighbors(x, y);
     const randomNeighbors = neighbors
       .sort(() => 0.5 - Math.random())
-      .slice(0, Math.floor(Math.random() * 2) + 4);
+      .slice(0, Math.floor(Math.random() * 6) + 2);
 
     setSquaresState((prevState) => {
       const newStates = { ...prevState };
@@ -103,22 +96,12 @@ export function InteractiveGridPattern({
         const timeoutId = setTimeout(() => {
           setSquaresState((current) => {
             const updated = { ...current };
-            if (updated[index]?.state === 'highlighted') {
-              updated[index] = { ...updated[index], state: 'fading' };
-              const removalTimeoutId = setTimeout(() => {
-                setSquaresState((currentInner) => {
-                  const updatedInner = { ...currentInner };
-                  if (updatedInner[index]?.state === 'fading') {
-                    delete updatedInner[index];
-                  }
-                  return updatedInner;
-                });
-              }, 500); // Animation duration
-              updated[index].timeoutId = removalTimeoutId;
+            if (updated[index]) {
+              updated[index] = { state: 'fading' };
             }
             return updated;
           });
-        }, 400);
+        }, 100);
 
         squaresToUpdate[index] = { state: 'highlighted', timeoutId };
       }
@@ -128,6 +111,7 @@ export function InteractiveGridPattern({
   };
 
   const handleMouseLeave = () => {
+    lastHoveredSquareRef.current = null;
     setSquaresState((prevState) => {
       const newStates = { ...prevState };
       for (const keyStr of Object.keys(newStates)) {
@@ -137,22 +121,11 @@ export function InteractiveGridPattern({
           clearTimeout(square.timeoutId);
         }
         if (square.state === 'highlighted') {
-          newStates[key] = { ...square, state: 'fading' };
-          const removalTimeoutId = setTimeout(() => {
-            setSquaresState((currentInner) => {
-              const updatedInner = { ...currentInner };
-              if (updatedInner[key]?.state === 'fading') {
-                delete updatedInner[key];
-              }
-              return updatedInner;
-            });
-          }, 100); // Animation duration
-          newStates[key].timeoutId = removalTimeoutId;
+          newStates[key] = { state: 'fading' };
         }
       }
       return newStates;
     });
-    lastSquareRef.current = null;
   };
 
   return (
@@ -160,8 +133,8 @@ export function InteractiveGridPattern({
       width={width * horizontal}
       height={height * vertical}
       className={cn('absolute inset-0 h-full w-full', className)}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
+      onMouseMove={isMobile ? undefined : handleMouseMove}
+      onMouseLeave={isMobile ? undefined : handleMouseLeave}
       {...props}
     >
       {Array.from({ length: horizontal * vertical }).map((_, index) => {
@@ -177,21 +150,13 @@ export function InteractiveGridPattern({
             width={width}
             height={height}
             className={cn(
-              'fill-transparent',
+              'fill-transparent stroke-gray-500/10 transition-colors duration-200',
               {
-                // 'transition-colors duration-300': squareState?.state !== 'fading',
-                'fading-out': squareState?.state === 'fading',
+                'stroke-[#A5AD3D]': squareState?.state === 'highlighted',
+                'animate-fade-out': squareState?.state === 'fading',
               },
               squaresClassName
             )}
-            style={{
-              stroke:
-                squareState?.state === 'highlighted'
-                  ? '#A5AD3D'
-                  : squareState?.state === 'fading'
-                  ? undefined
-                  : 'rgb(156 163 175 / 0.1)',
-            }}
           />
         );
       })}
