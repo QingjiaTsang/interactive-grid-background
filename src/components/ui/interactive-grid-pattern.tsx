@@ -132,7 +132,7 @@ export function InteractiveGridPattern({
     <svg
       width={width * horizontal}
       height={height * vertical}
-      className={cn('absolute inset-0 h-full w-full', className)}
+      className={cn('absolute inset-0 h-full w-full cursor-crosshair', className)}
       onMouseMove={isMobile ? undefined : handleMouseMove}
       onMouseLeave={isMobile ? undefined : handleMouseLeave}
       {...props}
