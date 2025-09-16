@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import React, { useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 
 /**
  * InteractiveGridPattern is a component that renders a grid pattern with interactive squares.
@@ -34,13 +34,25 @@ type SquareState = {
 export function InteractiveGridPattern({
   width = 50,
   height = 50,
-  squares = [28, 28],
+  squares = [88, 88],
   className,
   squaresClassName,
   ...props
 }: InteractiveGridPatternProps) {
   const [horizontal, vertical] = squares;
   const [squaresState, setSquaresState] = useState<Record<number, SquareState>>({});
+  const lastSquareRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    // Cleanup timeouts on unmount
+    return () => {
+      for (const square of Object.values(squaresState)) {
+        if (square.timeoutId) {
+          clearTimeout(square.timeoutId);
+        }
+      }
+    };
+  }, [squaresState]);
 
   const getNeighbors = (x: number, y: number) => {
     const col = Math.floor(x / width);
@@ -65,10 +77,18 @@ export function InteractiveGridPattern({
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
+    const currentSquare = Math.floor(y / height) * horizontal + Math.floor(x / width);
+
+    if (currentSquare === lastSquareRef.current) {
+      return;
+    }
+
+    lastSquareRef.current = currentSquare;
+
     const neighbors = getNeighbors(x, y);
     const randomNeighbors = neighbors
       .sort(() => 0.5 - Math.random())
-      .slice(0, Math.floor(Math.random() * 3) + 0);
+      .slice(0, Math.floor(Math.random() * 2) + 4);
 
     setSquaresState((prevState) => {
       const newStates = { ...prevState };
@@ -83,8 +103,18 @@ export function InteractiveGridPattern({
         const timeoutId = setTimeout(() => {
           setSquaresState((current) => {
             const updated = { ...current };
-            if (updated[index]) {
-              updated[index] = { state: 'fading' };
+            if (updated[index]?.state === 'highlighted') {
+              updated[index] = { ...updated[index], state: 'fading' };
+              const removalTimeoutId = setTimeout(() => {
+                setSquaresState((currentInner) => {
+                  const updatedInner = { ...currentInner };
+                  if (updatedInner[index]?.state === 'fading') {
+                    delete updatedInner[index];
+                  }
+                  return updatedInner;
+                });
+              }, 500); // Animation duration
+              updated[index].timeoutId = removalTimeoutId;
             }
             return updated;
           });
@@ -107,11 +137,22 @@ export function InteractiveGridPattern({
           clearTimeout(square.timeoutId);
         }
         if (square.state === 'highlighted') {
-          newStates[key] = { state: 'fading' };
+          newStates[key] = { ...square, state: 'fading' };
+          const removalTimeoutId = setTimeout(() => {
+            setSquaresState((currentInner) => {
+              const updatedInner = { ...currentInner };
+              if (updatedInner[key]?.state === 'fading') {
+                delete updatedInner[key];
+              }
+              return updatedInner;
+            });
+          }, 100); // Animation duration
+          newStates[key].timeoutId = removalTimeoutId;
         }
       }
       return newStates;
     });
+    lastSquareRef.current = null;
   };
 
   return (
@@ -135,13 +176,20 @@ export function InteractiveGridPattern({
             y={y}
             width={width}
             height={height}
-            className={cn('fill-transparent transition-colors duration-1000', squaresClassName)}
+            className={cn(
+              'fill-transparent',
+              {
+                // 'transition-colors duration-300': squareState?.state !== 'fading',
+                'fading-out': squareState?.state === 'fading',
+              },
+              squaresClassName
+            )}
             style={{
               stroke:
                 squareState?.state === 'highlighted'
-                  ? '#DEEA51'
+                  ? '#A5AD3D'
                   : squareState?.state === 'fading'
-                  ? 'rgb(156 163 175 / 0.3)'
+                  ? undefined
                   : 'rgb(156 163 175 / 0.3)',
             }}
           />
